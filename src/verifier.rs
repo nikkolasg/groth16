@@ -28,10 +28,19 @@ pub fn prepare_inputs<E: PairingEngine>(
     }
 
     let mut g_ic = pvk.vk.gamma_abc_g1[0].into_projective();
-    for (i, b) in public_inputs.iter().zip(pvk.vk.gamma_abc_g1.iter().skip(1)) {
+    for (idx, (i, b)) in public_inputs
+        .iter()
+        .zip(pvk.vk.gamma_abc_g1.iter().skip(1))
+        .enumerate()
+    {
+        println!("NATIVE PVK PREIVOUS step {}: {:?}", idx, g_ic);
         g_ic.add_assign(&b.mul(i.into_repr()));
+        println!("NATIVE PVK step {}: {:?}", idx, g_ic);
     }
-
+    for (i, elem) in public_inputs.iter().enumerate() {
+        println!("NATIVE input {}: {:?}", i, elem);
+    }
+    println!("NATIVE G_IC: {:?}", g_ic);
     Ok(g_ic)
 }
 

@@ -2,6 +2,8 @@ use crate::{Groth16, PreparedVerifyingKey, Proof, VerifyingKey};
 use ark_crypto_primitives::snark::constraints::{CircuitSpecificSetupSNARKGadget, SNARKGadget};
 use ark_crypto_primitives::snark::{BooleanInputVar, SNARK};
 use ark_ec::{AffineCurve, PairingEngine};
+use ark_ff::BigInteger;
+use ark_ff::PrimeField;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
@@ -9,7 +11,7 @@ use ark_r1cs_std::{
     bits::uint8::UInt8,
     eq::EqGadget,
     pairing::PairingVar,
-    ToBitsGadget, ToBytesGadget,
+    R1CSVar, ToBitsGadget, ToBytesGadget,
 };
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_std::{borrow::Borrow, marker::PhantomData, vec::Vec};
@@ -204,12 +206,28 @@ impl<E: PairingEngine, P: PairingVar<E, E::Fq>> SNARKGadget<E::Fr, E::Fq, Groth1
             let mut g_ic: P::G1Var = circuit_pvk.gamma_abc_g1[0].clone();
             let mut input_len = 1;
             let mut public_inputs = x.clone().into_iter();
-            for (input, b) in public_inputs
+            for (i, (input, b)) in public_inputs
                 .by_ref()
                 .zip(circuit_pvk.gamma_abc_g1.iter().skip(1))
+                .enumerate()
             {
                 let encoded_input_i: P::G1Var = b.scalar_mul_le(input.to_bits_le()?.iter())?;
+                println!(
+                    "CONSTRAINTS G_IC PREVIOUS step {}: {:?}",
+                    i,
+                    g_ic.value().unwrap()
+                );
                 g_ic += encoded_input_i;
+                let pi = E::Fr::from_repr(<E::Fr as PrimeField>::BigInt::from_bits_le(
+                    &input
+                        .to_bits_le()?
+                        .iter()
+                        .map(|u| u.value())
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap(),
+                ));
+                println!("CONSTRAINTS Pub Input {}: {:?}", i, pi);
+                println!("CONSTRAINTS G_IC step {}: {:?}", i, g_ic.value().unwrap());
                 input_len += 1;
             }
             // Check that the input and the query in the verification are of the
@@ -217,6 +235,12 @@ impl<E: PairingEngine, P: PairingVar<E, E::Fq>> SNARKGadget<E::Fr, E::Fq, Groth1
             assert!(input_len == circuit_pvk.gamma_abc_g1.len() && public_inputs.next().is_none());
             g_ic
         };
+        if let Ok(g) = g_ic.value() {
+            /*for (i, elem) in circuit_pvk.gamma_abc_g1.iter().enumerate() {*/
+            //println!("CONSTRAINTS: Gamma {}: {:?}", i, elem.value().unwrap());
+            /*}*/
+            println!("CONSTRAINTS: G_IC: {:?}", g);
+        }
 
         let test_exp = {
             let proof_a_prep = P::prepare_g1(&proof.a)?;
